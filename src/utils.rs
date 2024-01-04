@@ -1,4 +1,4 @@
-use std::{env};
+use std::env;
 
 pub fn parse_args() -> Option<Vec<String>> {
     let mut args = env::args();

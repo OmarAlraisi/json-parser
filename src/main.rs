@@ -22,7 +22,7 @@ fn main() {
                 eprintln!("{}", err);
             },
             Ok(json) => {
-                json.display();
+                println!("{}", json);
             }
         };
     }

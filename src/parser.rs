@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display, fs};
+use std::{collections::HashMap, fmt::Display, fs, vec::IntoIter};
 
 #[derive(Debug)]
 enum JSONValue {
@@ -7,6 +7,30 @@ enum JSONValue {
     Bool(bool),
     Array(Vec<JSONValue>),
     Object(HashMap<String, JSONValue>),
+}
+
+impl Display for JSONValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self {
+            JSONValue::String(val) => write!(f, "{}", val),
+            JSONValue::Number(val) => write!(f, "{}", val),
+            JSONValue::Bool(val) => write!(f, "{}", val),
+            JSONValue::Array(vals) => {
+                let mut str_val = String::new();
+                for val in vals {
+                    str_val.push_str(&format!("{}, ", val));
+                }
+                write!(f, "[{}]", str_val)
+            }
+            JSONValue::Object(map) => {
+                let mut str_val = String::new();
+                for key in map.keys() {
+                    str_val.push_str(&format!("{}: {}", key, map.get(key).unwrap()));
+                }
+                write!(f, "[{}]", str_val)
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -36,9 +60,9 @@ impl JSON {
         }
 
         match fs::read_to_string(file_name) {
-            Ok(content) => match JSON::parse(content) {
+            Ok(content) => match JSON::parse(format!("{}", &content.trim())) {
                 Ok(json) => Ok(json),
-                Err(err) => Err(ArgsParseError(format!("{}", err)))
+                Err(err) => Err(ArgsParseError(format!("{}", err))),
             },
             Err(_) => Err(ArgsParseError(format!("{} does not exist!", file_name))),
         }
@@ -48,14 +72,42 @@ impl JSON {
         if !content.starts_with('{') || !content.ends_with('}') {
             Err(JSONParseError)
         } else {
-            Ok(JSON {
+            let mut json = JSON {
                 keys: vec![],
                 values: vec![],
-            })
+            };
+
+            let mut tokens = content.chars().collect::<Vec<char>>().into_iter();
+            while tokens.len() > 0 {
+                match JSON::get_pair(&mut tokens) {
+                    Ok((key, value)) => {
+                        json.keys.push(key);
+                        json.values.push(value);
+                    }
+                    Err(err) => {
+                        return Err(err);
+                    }
+                }
+            }
+
+            Ok(json)
         }
     }
 
-    pub fn display(&self) {
-        println!("{:?}", self);
+    fn get_pair(tokens: &mut IntoIter<char>) -> Result<(String, JSONValue), JSONParseError> {
+        tokens.next();
+        Ok((String::from("key"), JSONValue::String(String::from("key"))))
+        // Err(JSONParseError)
+    }
+}
+
+impl Display for JSON {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut json_str = String::from("{");
+        for idx in 0..self.keys.len() {
+            json_str.push_str(&format!("{}: {}\n", self.keys[idx], self.values[idx]));
+        }
+        json_str.push('}');
+        write!(f, "{}", json_str)
     }
 }
