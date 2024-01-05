@@ -35,8 +35,7 @@ impl Display for JSONValue {
 
 #[derive(Debug)]
 pub struct JSON {
-    keys: Vec<String>,
-    values: Vec<JSONValue>,
+    object: HashMap<String, JSONValue>,
 }
 
 pub struct ArgsParseError(String);
@@ -73,16 +72,14 @@ impl JSON {
             Err(JSONParseError)
         } else {
             let mut json = JSON {
-                keys: vec![],
-                values: vec![],
+                object: HashMap::new(),
             };
 
-            let mut tokens = content.chars().collect::<Vec<char>>().into_iter();
+            let mut tokens = content.chars().skip(1).collect::<Vec<char>>().into_iter();
             while tokens.len() > 0 {
                 match JSON::get_pair(&mut tokens) {
                     Ok((key, value)) => {
-                        json.keys.push(key);
-                        json.values.push(value);
+                        json.object.insert(key, value);
                     }
                     Err(err) => {
                         return Err(err);
@@ -95,17 +92,72 @@ impl JSON {
     }
 
     fn get_pair(tokens: &mut IntoIter<char>) -> Result<(String, JSONValue), JSONParseError> {
-        tokens.next();
-        Ok((String::from("key"), JSONValue::String(String::from("key"))))
-        // Err(JSONParseError)
+        let key = match JSON::parse_key(tokens) {
+            Ok(key) => key,
+            Err(err) => return Err(err),
+        };
+
+        if let Some(err) = JSON::skip_colons(tokens) {
+            return Err(err);
+        }
+        
+        let value = match JSON::parse_value(tokens) {
+            Ok(value) => value,
+            Err(err) => return Err(err),
+        };
+
+        Ok((key, value))
+    }
+
+    fn parse_key(tokens: &mut IntoIter<char>) -> Result<String, JSONParseError> {
+
+        let mut start = tokens.next().unwrap();
+        while start.is_whitespace() {
+            start = match tokens.next() {
+                None => return Err(JSONParseError),
+                Some(ch) => ch,
+            }
+        }
+
+        if start != '"' {
+            return Err(JSONParseError);
+        }
+
+        let mut key = String::new();
+        let mut escaped = false;
+
+        while let Some(ch) = tokens.next() {
+            if escaped {
+                key.push(ch);
+                escaped = false;
+            } else {
+                match ch {
+                    '"' => return Ok(key),
+                    '\\' => {
+                        escaped = true;
+                    }
+                    _ => key.push(ch),
+                }
+            }
+        }
+
+        Ok(String::new())
+    }
+
+    fn skip_colons(tokens: &mut IntoIter<char>) -> Option<JSONParseError> {
+        todo!()
+    }
+
+    fn parse_value(tokens: &mut IntoIter<char>) -> Result<JSONValue, JSONParseError> {
+        todo!()
     }
 }
 
 impl Display for JSON {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut json_str = String::from("{");
-        for idx in 0..self.keys.len() {
-            json_str.push_str(&format!("{}: {}\n", self.keys[idx], self.values[idx]));
+        let mut json_str = String::from("{\n");
+        for key in self.object.keys() {
+            json_str.push_str(&format!("{}: {}\n", key, self.object.get(key).unwrap()));
         }
         json_str.push('}');
         write!(f, "{}", json_str)
