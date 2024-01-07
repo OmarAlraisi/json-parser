@@ -1,9 +1,9 @@
 mod parser;
 mod utils;
 
+use parser::JSON;
 use std::process::exit;
 use utils::parse_args;
-use parser::JSON;
 
 fn main() {
     let files = match parse_args() {
@@ -20,7 +20,7 @@ fn main() {
             Err(err) => {
                 status_code = 1;
                 eprintln!("{}", err);
-            },
+            }
             Ok(json) => {
                 println!("{}", json);
             }
