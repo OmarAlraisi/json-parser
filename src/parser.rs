@@ -81,7 +81,7 @@ impl JSON {
                 .collect::<Vec<char>>()
                 .into_iter()
                 .peekable();
-            while tokens.len() > 0 {
+            while tokens.len() > 1 {
                 match JSON::get_pair(&mut tokens) {
                     Ok((key, value)) => {
                         json.object.insert(key, value);
@@ -235,6 +235,10 @@ impl JSON {
                 Ok(json) => Ok(JSONValue::Object(json)),
                 Err(err) => Err(err),
             },
+            '[' => match JSON::parse_array_value(tokens) {
+                Ok(array) => Ok(JSONValue::Array(array)),
+                Err(err) => Err(err),
+            },
             _ => {
                 if token.is_numeric() || token == '-' {
                     match JSON::parse_numeric_value(token, tokens) {
@@ -246,6 +250,33 @@ impl JSON {
                 }
             }
         }
+    }
+
+    fn parse_array_value<I: Iterator<Item = char>>(
+        tokens: &mut Peekable<I>,
+    ) -> Result<Vec<JSONValue>, JSONParseError> {
+        let mut array: Vec<JSONValue> = vec![];
+
+        while let Some(token) = tokens.peek() {
+            if *token == ']' {
+                tokens.next().unwrap();
+                return Ok(array);
+            }
+            match JSON::parse_value(tokens) {
+                Ok(val) => array.push(val),
+                Err(err) => return Err(err),
+            }
+            match JSON::skip_whitspace(tokens) {
+                None => return Err(JSONParseError),
+                Some(token) => match token {
+                    ',' => {}
+                    ']' => return Ok(array),
+                    _ => return Err(JSONParseError),
+                },
+            }
+        }
+
+        Err(JSONParseError)
     }
 
     fn parse_object_value<I: Iterator<Item = char>>(
