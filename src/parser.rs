@@ -33,30 +33,9 @@ impl Display for JSONValue {
     }
 }
 
-type Level = u8;
-static mut LEVEL: Level = 0;
-
-fn get_level() -> Level {
-    unsafe {
-        return LEVEL;
-    }
-}
-
-fn increment_level() {
-    unsafe {
-        LEVEL += 1;
-    }
-}
-
-fn decrement_level() {
-    unsafe {
-        LEVEL -= 1;
-    }
-}
-
 #[derive(Debug)]
 pub struct JSON {
-    object: HashMap<String, (Level, JSONValue)>,
+    object: HashMap<String, JSONValue>,
 }
 
 pub struct ArgsParseError(String);
@@ -93,7 +72,6 @@ impl JSON {
     }
 
     fn parse(content: String) -> Result<JSON, JSONParseError> {
-        increment_level();
         if !content.starts_with('{') || !content.ends_with('}') {
             Err(JSONParseError)
         } else {
@@ -111,12 +89,10 @@ impl JSON {
             while tokens.len() > 1 {
                 match JSON::get_pair(&mut tokens) {
                     Ok((key, value)) => {
-                        let level = get_level();
-                        json.object.insert(key, (level, value));
+                        json.object.insert(key, value);
                         match JSON::skip_whitspace(&mut tokens) {
                             Some(ch) => match ch {
                                 '}' => {
-                                    decrement_level();
                                     return Ok(json);
                                 }
                                 ',' => {
@@ -126,6 +102,8 @@ impl JSON {
                                         }
                                         if token.is_whitespace() {
                                             tokens.next().unwrap();
+                                        } else {
+                                            break;
                                         }
                                     }
                                 }
@@ -140,7 +118,6 @@ impl JSON {
                 }
             }
 
-            decrement_level();
             Ok(json)
         }
     }
@@ -400,12 +377,10 @@ impl JSON {
     }
 }
 
-fn get_padded_string(level: Level, str: String) -> String {
+fn get_padded_string(str: String) -> String {
     let mut output = String::new();
     for line in str.lines() {
-        for _ in 0..level {
-            output.push_str("  ");
-        }
+        output.push_str("  ");
         output.push_str(line);
         output.push('\n');
     }
@@ -416,29 +391,21 @@ impl Display for JSON {
         if self.object.len() == 0 {
             write!(f, "{}{}", '{', '}')
         } else {
-            let mut json_str = String::from("{\n");
+            let mut json_str = String::new();
             for (idx, key) in self.object.keys().enumerate() {
-                let line = get_padded_string(
-                    self.object.get(key).unwrap().0,
-                    format!(
-                        "{}: {}{}",
-                        (if key.contains(' ') {
-                            format!("\"{}\"", key)
-                        } else {
-                            format!("{}", key)
-                        }),
-                        self.object.get(key).unwrap().1,
-                        if idx < self.object.len() - 1 {
-                            ','
-                        } else {
-                            ' '
-                        }
-                    ),
-                );
-                json_str.push_str(&line);
+                if key.contains(' ') {
+                    json_str.push_str(&format!("\"{}\"", key));
+                } else {
+                    json_str.push_str(key);
+                }
+                json_str.push_str(": ");
+                json_str.push_str(&format!("{}", self.object.get(key).unwrap()));
+                if idx < self.object.len() - 1 {
+                    json_str.push(',');
+                }
+                json_str.push('\n');
             }
-            json_str.push('}');
-            write!(f, "{}", json_str)
+            write!(f, "{}\n{}{}", '{', get_padded_string(json_str), '}')
         }
     }
 }
