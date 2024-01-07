@@ -107,6 +107,7 @@ impl JSON {
                 .collect::<Vec<char>>()
                 .into_iter()
                 .peekable();
+
             while tokens.len() > 1 {
                 match JSON::get_pair(&mut tokens) {
                     Ok((key, value)) => {
@@ -118,7 +119,16 @@ impl JSON {
                                     decrement_level();
                                     return Ok(json);
                                 }
-                                ',' => {}
+                                ',' => {
+                                    while let Some(token) = tokens.peek() {
+                                        if *token == '}' {
+                                            return Err(JSONParseError);
+                                        }
+                                        if token.is_whitespace() {
+                                            tokens.next().unwrap();
+                                        }
+                                    }
+                                }
                                 _ => return Err(JSONParseError),
                             },
                             None => return Err(JSONParseError),
