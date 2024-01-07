@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display, fs, vec::IntoIter};
+use std::{collections::HashMap, fmt::Display, fs, iter::Peekable, vec::IntoIter};
 
 #[derive(Debug)]
 enum JSONValue {
@@ -79,7 +79,12 @@ impl JSON {
                 object: HashMap::new(),
             };
 
-            let mut tokens = content.chars().skip(1).collect::<Vec<char>>().into_iter();
+            let mut tokens = content
+                .chars()
+                .skip(1)
+                .collect::<Vec<char>>()
+                .into_iter()
+                .peekable();
             while tokens.len() > 0 {
                 match JSON::get_pair(&mut tokens) {
                     Ok((key, value)) => {
@@ -103,7 +108,9 @@ impl JSON {
         }
     }
 
-    fn get_pair(tokens: &mut IntoIter<char>) -> Result<(String, JSONValue), JSONParseError> {
+    fn get_pair<I: Iterator<Item = char>>(
+        tokens: &mut Peekable<I>,
+    ) -> Result<(String, JSONValue), JSONParseError> {
         let key = match JSON::parse_key(tokens) {
             Ok(key) => key,
             Err(err) => return Err(err),
@@ -121,7 +128,7 @@ impl JSON {
         Ok((key, value))
     }
 
-    fn skip_whitspace(tokens: &mut IntoIter<char>) -> Option<char> {
+    fn skip_whitspace<I: Iterator<Item = char>>(tokens: &mut Peekable<I>) -> Option<char> {
         while let Some(ch) = tokens.next() {
             if !ch.is_whitespace() {
                 return Some(ch);
@@ -131,7 +138,9 @@ impl JSON {
         None
     }
 
-    fn parse_key(tokens: &mut IntoIter<char>) -> Result<String, JSONParseError> {
+    fn parse_key<I: Iterator<Item = char>>(
+        tokens: &mut Peekable<I>,
+    ) -> Result<String, JSONParseError> {
         let start = match JSON::skip_whitspace(tokens) {
             None => return Err(JSONParseError),
             Some(ch) => ch,
@@ -162,7 +171,7 @@ impl JSON {
         Err(JSONParseError)
     }
 
-    fn skip_colons(tokens: &mut IntoIter<char>) -> Option<JSONParseError> {
+    fn skip_colons<I: Iterator<Item = char>>(tokens: &mut Peekable<I>) -> Option<JSONParseError> {
         match JSON::skip_whitspace(tokens) {
             Some(ch) => match ch {
                 ':' => None,
@@ -172,7 +181,9 @@ impl JSON {
         }
     }
 
-    fn parse_value(tokens: &mut IntoIter<char>) -> Result<JSONValue, JSONParseError> {
+    fn parse_value<I: Iterator<Item = char>>(
+        tokens: &mut Peekable<I>,
+    ) -> Result<JSONValue, JSONParseError> {
         let token = match JSON::skip_whitspace(tokens) {
             Some(ch) => ch,
             None => return Err(JSONParseError),
@@ -212,8 +223,10 @@ impl JSON {
             }
             _ => {
                 if token.is_numeric() || token == '-' {
-                    // check if this is a number
-                    todo!()
+                    match JSON::parse_numeric_value(token, tokens) {
+                        Ok(num) => Ok(JSONValue::Number(num)),
+                        Err(err) => Err(err),
+                    }
                 } else {
                     Err(JSONParseError)
                 }
@@ -221,7 +234,28 @@ impl JSON {
         }
     }
 
-    fn parse_string_value(tokens: &mut IntoIter<char>) -> Result<String, JSONParseError> {
+    fn parse_numeric_value<I: Iterator<Item = char>>(
+        digit: char,
+        tokens: &mut Peekable<I>,
+    ) -> Result<i32, JSONParseError> {
+        let mut value = String::from(digit);
+
+        while let Some(ch) = tokens.peek() {
+            if !ch.is_numeric() {
+                break;
+            }
+            value.push(tokens.next().unwrap());
+        }
+
+        return match value.parse::<i32>() {
+            Ok(num) => Ok(num),
+            Err(_) => Err(JSONParseError),
+        };
+    }
+
+    fn parse_string_value<I: Iterator<Item = char>>(
+        tokens: &mut Peekable<I>,
+    ) -> Result<String, JSONParseError> {
         let mut value = String::new();
         let mut escaped = false;
 
