@@ -59,11 +59,15 @@ impl JSON {
         }
 
         match fs::read_to_string(file_name) {
-            Ok(content) => match JSON::parse(format!("{}", &content.trim())) {
-                Ok(json) => Ok(json),
-                Err(err) => Err(ArgsParseError(format!("{}", err))),
-            },
+            Ok(content) => JSON::parse_from_string(content),
             Err(_) => Err(ArgsParseError(format!("{} does not exist!", file_name))),
+        }
+    }
+
+    fn parse_from_string(content: String) -> Result<JSON, ArgsParseError> {
+        match JSON::parse(format!("{}", content.trim())) {
+            Ok(json) => Ok(json),
+            Err(err) => Err(ArgsParseError(format!("{}", err))),
         }
     }
 
@@ -80,6 +84,14 @@ impl JSON {
                 match JSON::get_pair(&mut tokens) {
                     Ok((key, value)) => {
                         json.object.insert(key, value);
+                        match JSON::skip_whitspace(&mut tokens) {
+                            Some(ch) => match ch {
+                                '}' => return Ok(json),
+                                ',' => {},
+                                _ => return Err(JSONParseError),
+                            },
+                            None => return Err(JSONParseError),
+                        }
                     }
                     Err(err) => {
                         return Err(err);
@@ -100,7 +112,7 @@ impl JSON {
         if let Some(err) = JSON::skip_colons(tokens) {
             return Err(err);
         }
-        
+
         let value = match JSON::parse_value(tokens) {
             Ok(value) => value,
             Err(err) => return Err(err),
@@ -109,15 +121,21 @@ impl JSON {
         Ok((key, value))
     }
 
-    fn parse_key(tokens: &mut IntoIter<char>) -> Result<String, JSONParseError> {
-
-        let mut start = tokens.next().unwrap();
-        while start.is_whitespace() {
-            start = match tokens.next() {
-                None => return Err(JSONParseError),
-                Some(ch) => ch,
+    fn skip_whitspace(tokens: &mut IntoIter<char>) -> Option<char> {
+        while let Some(ch) = tokens.next() {
+            if !ch.is_whitespace() {
+                return Some(ch);
             }
         }
+
+        None
+    }
+
+    fn parse_key(tokens: &mut IntoIter<char>) -> Result<String, JSONParseError> {
+        let start = match JSON::skip_whitspace(tokens) {
+            None => return Err(JSONParseError),
+            Some(ch) => ch,
+        };
 
         if start != '"' {
             return Err(JSONParseError);
@@ -141,15 +159,54 @@ impl JSON {
             }
         }
 
-        Ok(String::new())
+        Err(JSONParseError)
     }
 
     fn skip_colons(tokens: &mut IntoIter<char>) -> Option<JSONParseError> {
-        todo!()
+        match JSON::skip_whitspace(tokens) {
+            Some(ch) => match ch {
+                ':' => None,
+                _ => Some(JSONParseError),
+            },
+            None => Some(JSONParseError),
+        }
     }
 
     fn parse_value(tokens: &mut IntoIter<char>) -> Result<JSONValue, JSONParseError> {
-        todo!()
+        let token = match JSON::skip_whitspace(tokens) {
+            Some(ch) => ch,
+            None => return Err(JSONParseError),
+        };
+
+        match token {
+            '"' => match JSON::parse_string_value(tokens) {
+                Ok(val) => Ok(JSONValue::String(val)),
+                Err(err) => Err(err),
+            },
+            _ => Err(JSONParseError),
+        }
+    }
+
+    fn parse_string_value(tokens: &mut IntoIter<char>) -> Result<String, JSONParseError> {
+        let mut value = String::new();
+        let mut escaped = false;
+
+        while let Some(ch) = tokens.next() {
+            if escaped {
+                value.push(ch);
+                escaped = false;
+            } else {
+                match ch {
+                    '"' => return Ok(value),
+                    '\\' => {
+                        escaped = true;
+                    }
+                    _ => value.push(ch),
+                }
+            }
+        }
+
+        Err(JSONParseError)
     }
 }
 
