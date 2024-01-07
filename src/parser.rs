@@ -12,7 +12,7 @@ enum JSONValue {
 impl Display for JSONValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
-            JSONValue::String(val) => write!(f, "{}", val),
+            JSONValue::String(val) => write!(f, "\"{}\"", val),
             JSONValue::Number(val) => write!(f, "{}", val),
             JSONValue::Bool(val) => write!(f, "{}", val),
             JSONValue::Array(vals) => {
@@ -183,6 +183,33 @@ impl JSON {
                 Ok(val) => Ok(JSONValue::String(val)),
                 Err(err) => Err(err),
             },
+            't' => {
+                let mut str = String::from("t");
+                while let Some(ch) = tokens.next() {
+                    str.push(ch);
+                    if ch.is_whitespace() || ch == 'e' {
+                        break;
+                    }
+                }
+
+                match str.as_str() {
+                    "true" => Ok(JSONValue::Bool(true)),
+                    _ => Err(JSONParseError),
+                }
+            }
+            'f' => {
+                let mut str = String::from("f");
+                while let Some(ch) = tokens.next() {
+                    str.push(ch);
+                    if ch.is_whitespace() || ch == 'e' {
+                        break;
+                    }
+                }
+                match str.as_str() {
+                    "false" => Ok(JSONValue::Bool(false)),
+                    _ => Err(JSONParseError),
+                }
+            }
             _ => Err(JSONParseError),
         }
     }
