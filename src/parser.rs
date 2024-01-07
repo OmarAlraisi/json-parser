@@ -347,7 +347,13 @@ impl JSON {
         }
 
         return match value.parse::<i32>() {
-            Ok(num) => Ok(num),
+            Ok(num) => {
+                if num != 0 && digit == '0' {
+                    Err(JSONParseError)
+                } else {
+                    Ok(num)
+                }
+            }
             Err(_) => Err(JSONParseError),
         };
     }
