@@ -87,7 +87,7 @@ impl JSON {
                         match JSON::skip_whitspace(&mut tokens) {
                             Some(ch) => match ch {
                                 '}' => return Ok(json),
-                                ',' => {},
+                                ',' => {}
                                 _ => return Err(JSONParseError),
                             },
                             None => return Err(JSONParseError),
@@ -210,7 +210,14 @@ impl JSON {
                     _ => Err(JSONParseError),
                 }
             }
-            _ => Err(JSONParseError),
+            _ => {
+                if token.is_numeric() || token == '-' {
+                    // check if this is a number
+                    todo!()
+                } else {
+                    Err(JSONParseError)
+                }
+            }
         }
     }
 
