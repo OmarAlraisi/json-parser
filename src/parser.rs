@@ -1,12 +1,13 @@
-use std::{collections::HashMap, fmt::Display, fs, iter::Peekable, vec::IntoIter};
+use std::{collections::HashMap, fmt::Display, fs, iter::Peekable};
 
 #[derive(Debug)]
 enum JSONValue {
     String(String),
     Number(i32),
     Bool(bool),
+    Null,
     Array(Vec<JSONValue>),
-    Object(HashMap<String, JSONValue>),
+    Object(JSON),
 }
 
 impl Display for JSONValue {
@@ -15,6 +16,7 @@ impl Display for JSONValue {
             JSONValue::String(val) => write!(f, "\"{}\"", val),
             JSONValue::Number(val) => write!(f, "{}", val),
             JSONValue::Bool(val) => write!(f, "{}", val),
+            JSONValue::Null => write!(f, "null"),
             JSONValue::Array(vals) => {
                 let mut str_val = String::new();
                 for val in vals {
@@ -22,13 +24,7 @@ impl Display for JSONValue {
                 }
                 write!(f, "[{}]", str_val)
             }
-            JSONValue::Object(map) => {
-                let mut str_val = String::new();
-                for key in map.keys() {
-                    str_val.push_str(&format!("{}: {}", key, map.get(key).unwrap()));
-                }
-                write!(f, "[{}]", str_val)
-            }
+            JSONValue::Object(json) => write!(f, "{}", json),
         }
     }
 }
@@ -194,6 +190,20 @@ impl JSON {
                 Ok(val) => Ok(JSONValue::String(val)),
                 Err(err) => Err(err),
             },
+            'n' => {
+                let mut str = String::from("n");
+                while let Some(ch) = tokens.next() {
+                    str.push(ch);
+                    if ch.is_whitespace() || (ch == 'l' && str.len() == 4) {
+                        break;
+                    }
+                }
+
+                match str.as_str() {
+                    "null" => Ok(JSONValue::Null),
+                    _ => Err(JSONParseError),
+                }
+            }
             't' => {
                 let mut str = String::from("t");
                 while let Some(ch) = tokens.next() {
@@ -221,6 +231,10 @@ impl JSON {
                     _ => Err(JSONParseError),
                 }
             }
+            '{' => match JSON::parse_object_value(tokens) {
+                Ok(json) => Ok(JSONValue::Object(json)),
+                Err(err) => Err(err),
+            },
             _ => {
                 if token.is_numeric() || token == '-' {
                     match JSON::parse_numeric_value(token, tokens) {
@@ -231,6 +245,42 @@ impl JSON {
                     Err(JSONParseError)
                 }
             }
+        }
+    }
+
+    fn parse_object_value<I: Iterator<Item = char>>(
+        tokens: &mut Peekable<I>,
+    ) -> Result<JSON, JSONParseError> {
+        let mut object_str = String::from('{');
+        let mut in_string = false;
+        let mut opened = 0;
+
+        while let Some(token) = tokens.next() {
+            object_str.push(token);
+            match token {
+                '"' => {
+                    in_string = !in_string;
+                }
+                '{' => {
+                    if !in_string {
+                        opened += 1
+                    }
+                }
+                '}' => {
+                    if !in_string {
+                        if opened == 0 {
+                            break;
+                        }
+                        opened -= 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        match JSON::parse_from_string(object_str) {
+            Ok(json) => Ok(json),
+            Err(_) => Err(JSONParseError),
         }
     }
 
